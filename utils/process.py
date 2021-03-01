@@ -12,7 +12,10 @@ import sys
  Expected shape: [graph, nodes, nodes]
 """
 def adj_to_bias(adj, sizes, nhood=1):
+    # adj: B*N*N
     nb_graphs = adj.shape[0]
+    # print("sizes[0] is {}; adj.shape is {}".format(sizes[0], adj.shape))
+    # mt: B*N*N
     mt = np.empty(adj.shape)
     for g in range(nb_graphs):
         mt[g] = np.eye(adj.shape[1])

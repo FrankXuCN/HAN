@@ -32,20 +32,21 @@ class GAT(BaseGAttN):
         return logits
 
 class HeteGAT_multi(BaseGAttN):
-    def inference(inputs_list, nb_classes, nb_nodes, training, attn_drop, ffd_drop,
+    # def inference(inputs_list, nb_classes, nb_nodes, training, attn_drop, ffd_drop,
+    def inference(inputs_list, attn_drop, ffd_drop,
                   bias_mat_list, hid_units, n_heads, activation=tf.nn.elu, residual=False,
                   mp_att_size=128):
         embed_list = []
         for inputs, bias_mat in zip(inputs_list, bias_mat_list):
             attns = []
             jhy_embeds = []
-            for _ in range(n_heads[0]):
+            for _ in range(n_heads[0]):# 8
                 attns.append(layers.attn_head(inputs, bias_mat=bias_mat,
                                               out_sz=hid_units[0], activation=activation,
                                               in_drop=ffd_drop, coef_drop=attn_drop, residual=False))
-            h_1 = tf.concat(attns, axis=-1)
+            h_1 = tf.concat(attns, axis=-1)# 1*x*(8*8)
 
-            for i in range(1, len(hid_units)):
+            for i in range(1, len(hid_units)):#range(1,1)
                 h_old = h_1
                 attns = []
                 for _ in range(n_heads[i]):
@@ -55,26 +56,32 @@ class HeteGAT_multi(BaseGAttN):
                                                   in_drop=ffd_drop,
                                                   coef_drop=attn_drop, residual=residual))
                 h_1 = tf.concat(attns, axis=-1)
-            embed_list.append(tf.expand_dims(tf.squeeze(h_1), axis=1))
+            # h_1: 1*X*64 ==> X*1*64
+            # embed_list.append(tf.expand_dims(tf.squeeze(h_1), axis=1))
+            # change API because X != 1
+            embed_list.append(tf.transpose(h_1, [1, 0, 2]))
 
+        # size of inputs_list * (X*1*64) ==> X*L*64
         multi_embed = tf.concat(embed_list, axis=1)
+        print("inference/multi_embed is {}".format(multi_embed))
         final_embed, att_val = layers.SimpleAttLayer(multi_embed, mp_att_size,
                                                      time_major=False,
                                                      return_alphas=True)
 
-        out = []
-        for i in range(n_heads[-1]):
+        # out = []
+        # for i in range(n_heads[-1]):
       
-            out.append(tf.layers.dense(final_embed, nb_classes, activation=None))
-        #     out.append(layers.attn_head(h_1, bias_mat=bias_mat,
-        #                                 out_sz=nb_classes, activation=lambda x: x,
-        #                                 in_drop=ffd_drop, coef_drop=attn_drop, residual=False))
-        logits = tf.add_n(out) / n_heads[-1]
-        # logits_list.append(logits)
-        print('de')
+        #     out.append(tf.layers.dense(final_embed, nb_classes, activation=None))
+        # #     out.append(layers.attn_head(h_1, bias_mat=bias_mat,
+        # #                                 out_sz=nb_classes, activation=lambda x: x,
+        # #                                 in_drop=ffd_drop, coef_drop=attn_drop, residual=False))
+        # logits = tf.add_n(out) / n_heads[-1]
+        # # logits_list.append(logits)
+        # print('de')
 
-        logits = tf.expand_dims(logits, axis=0)
-        return logits, final_embed, att_val
+        # logits = tf.expand_dims(logits, axis=0)
+        # return logits, final_embed, att_val
+        return final_embed, att_val
 
 class HeteGAT_no_coef(BaseGAttN):
     def inference(inputs, nb_classes, nb_nodes, training, attn_drop, ffd_drop,
